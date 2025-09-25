@@ -16,6 +16,7 @@
             pkgs.python3
             pkgs.uv
             pkgs.git
+            pkgs.nextflow
           ];
 
           shellHook = ''

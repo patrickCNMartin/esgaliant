@@ -13,6 +13,7 @@ dependencies = [
     "dask-ml>=2025.1.0",
     "distributed>=2025.7.0",
     "ipykernel>=6.30.1",
+    "jax>=0.7.2",
     "jupyter>=1.1.1",
     "jupyterlab>=4.4.5",
     "leidenalg>=0.10.2",
