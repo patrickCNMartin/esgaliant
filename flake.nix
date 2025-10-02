@@ -17,6 +17,7 @@
             pkgs.uv
             pkgs.git
             pkgs.nextflow
+            pkgs.mlflow
           ];
 
           shellHook = ''
