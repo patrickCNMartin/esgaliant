@@ -17,7 +17,6 @@
             pkgs.uv
             pkgs.git
             pkgs.nextflow
-            pkgs.cudaPackages
           ];
 
           shellHook = ''
