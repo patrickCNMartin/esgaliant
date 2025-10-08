@@ -68,7 +68,7 @@ search = 'current_version = "{current_version}"'
 replace = 'current_version = "{new_version}"'
 
 [[tool.bumpversion.files]]
-filename = "yourpackage/__init__.py"
+filename = "esgaliant/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
 
