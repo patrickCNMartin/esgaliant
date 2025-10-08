@@ -36,4 +36,6 @@ If (as an alternative to the certainty of “once”) our model integrates laten
 
 # Lifecycle
 
-Right now, esgaliant is nothing but an idea: the lecherous gaze of a researcher reading exciting new papers and too much sci-fi for their own good. 
+Right now, esgaliant is nothing but an idea: the lecherous gaze of a researcher reading exciting new papers and too much sci-fi for their own good.
+
+"Version 0.1.0"
