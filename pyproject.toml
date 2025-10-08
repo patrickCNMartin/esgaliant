@@ -81,3 +81,8 @@ replace = 'release = "{new_version}"'
 filename = "README.md"
 search = "Version {current_version}"
 replace = "Version {new_version}"
+
+[dependency-groups]
+dev = [
+    "bump-my-version>=1.2.4",
+]
