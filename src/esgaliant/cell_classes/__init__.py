@@ -1,1 +1,1 @@
-from cells import *
+from . import cells

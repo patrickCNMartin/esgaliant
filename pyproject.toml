@@ -10,7 +10,7 @@ readme = "README.md"
 authors = [
     {name = "Patrick C.N. Martin", email = "patrick.martin@cshs.org"}
 ]
-license = {text = "MIT"}
+license = {text = "GNU3"}
 requires-python = ">=3.11"
 keywords = ["bioinformatics", "simulation", "single-cell", "genomics"]
 classifiers = [
@@ -25,27 +25,27 @@ dependencies = [
     # Core numerical computing
     "numpy>=1.26,<3.0",
     "scipy>=1.11",
-    
+
     # Performance & compilation
     "numba>=0.58",
     "jax>=0.4.20",
     "torch>=2.1",
-    
+
     # Data handling
     "polars>=1.0",
     "zarr>=3.0.0",
     "zstd>=1.5.7",
-    
+
     # Scientific computing
     "anndata>=0.10",
     "scanpy>=1.10",
-    
+
     # Machine learning
     "sklearn-ann>=0.1.3",
     "pynndescent>=0.5",
     "umap-learn>=0.5",
     "leidenalg>=0.10",
-    
+
     # Distributed computing
     "dask[complete]>=2024.1",
     "dask-ml>=2024.1",
@@ -61,18 +61,18 @@ dev = [
     "pytest-xdist>=3.5",
     "pytest-benchmark>=4.0",
     "hypothesis>=6.92",
-    
+
     # Code quality
     "ruff>=0.1",
     "mypy>=1.8",
     "pre-commit>=3.6",
-    
+
     # Profiling
     "scalene>=1.5",
     "line-profiler>=4.1",
     "memory-profiler>=0.61",
     "microbench>=0.9",
-    
+
     # Version management
     "bump-my-version>=0.26",
 ]
@@ -187,7 +187,7 @@ ignore_missing_imports = true
 # Linting & Formatting
 # ============================================================================
 [tool.ruff]
-line-length = 100
+line-length = 80
 target-version = "py311"
 src = ["src", "tests"]
 
