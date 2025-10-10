@@ -1,1 +1,1 @@
-from . import zarr
+from . import io_store
