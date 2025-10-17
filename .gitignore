@@ -18,6 +18,8 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 .benchmarks/
+profile.json
+profile.html
 
 # Profiling
 *.prof
