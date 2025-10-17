@@ -129,12 +129,12 @@ EOF
                 echo "Pre-commit hooks installed"
               fi
             else
-              echo "💡 Tip: Add .pre-commit-config.yaml for automated linting"
+              echo " Tip: Add .pre-commit-config.yaml for automated linting"
             fi
 
             # Pre-compile JAX (warmup)
             echo "Warming up JAX..."
-            python -c "import jax; import jax.numpy as jnp; jnp.ones(1).block_until_ready()" 2>/dev/null && echo "✅ JAX ready" || echo "⚠️  JAX not installed yet"
+            python -c "import jax; import jax.numpy as jnp; jnp.ones(1).block_until_ready()" 2>/dev/null && echo "JAX ready" || echo "JAX not installed yet"
 
             # Verify installation
             if python -c "import esgaliant" 2>/dev/null; then

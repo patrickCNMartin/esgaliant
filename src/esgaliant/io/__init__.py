@@ -1,1 +1,1 @@
-from . import io_store
+"""IO module."""

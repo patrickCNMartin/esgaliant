@@ -100,10 +100,9 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/esgaliant"
-Documentation = "https://esgaliant.readthedocs.io"
-Repository = "https://github.com/yourusername/esgaliant"
-Issues = "https://github.com/yourusername/esgaliant/issues"
+Homepage = "https://github.com/patrickCMartin/esgaliant"
+Repository = "https://github.com/patrickCMartin/esgaliant"
+Issues = "https://github.com/patrickCMartin/esgaliant/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
