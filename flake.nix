@@ -120,7 +120,7 @@ EOF
 
             # Install dependencies
             echo "Installing dependencies with uv..."
-            uv pip install -e '.[dev]'
+            uv pip install -e '.[all]'
 
             # Install pre-commit hooks if config exists
             if [ -f .pre-commit-config.yaml ]; then
