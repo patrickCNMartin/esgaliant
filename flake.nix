@@ -25,18 +25,8 @@
           gfortran
           cmake
           pkg-config
-
-          # Linear algebra (for NumPy/SciPy)
           openblas
           lapack
-
-          # Optional: CUDA support
-          # cudaPackages.cudatoolkit
-          # cudaPackages.cudnn
-
-          # Optional: For visualization/GUI
-          # libGL
-          # libGLU
         ];
 
       in {
@@ -45,17 +35,10 @@
             python
             uv
             git
-
-            # Performance profiling tools
-            # linuxPackages.perf  # Linux only - uncomment if on Linux
-            # valgrind            # Uncomment for memory debugging
-
-            # Documentation
-            graphviz  # For diagrams
-
           ] ++ systemDeps;
 
           shellHook = ''
+            echo "===================================="
             echo "Esgaliant Development Environment"
             echo "===================================="
 
@@ -106,6 +89,7 @@ htmlcov/
 *.egg-info/
 dist/
 build/
+data/
 .DS_Store
 EOF
               echo "Added Python artifacts to .gitignore"
@@ -128,8 +112,6 @@ EOF
                 pre-commit install
                 echo "Pre-commit hooks installed"
               fi
-            else
-              echo " Tip: Add .pre-commit-config.yaml for automated linting"
             fi
 
             # Pre-compile JAX (warmup)
@@ -144,21 +126,6 @@ EOF
               echo "esgaliant not yet importable"
               echo "Create src/esgaliant/__init__.py with: __version__ = '0.1.0'"
             fi
-
-            echo ""
-            echo " Environment ready!"
-            echo ""
-            echo "Quick commands:"
-            echo "  ruff format src/             # Format code"
-            echo "  ruff check src/              # Lint code"
-            echo "  mypy src/                    # Type check"
-            echo "  pytest tests/                # Run tests"
-            echo "  pytest --cov=src             # Test coverage"
-            echo ""
-            echo "Performance:"
-            echo "  pytest tests/benchmarks/ --benchmark-only"
-            echo "  python -m scalene your_script.py"
-            echo ""
           '';
         };
 

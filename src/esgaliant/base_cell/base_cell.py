@@ -1,204 +1,219 @@
 import cellxgene_census
-import numpy as np
-import numpy.typing as npt
+import cellxgene_census.experimental.ml as census_ml
 import tiledbsoma as soma
+import torch
 import zarr
 
-from esgaliant.io.io_store import compute_chunk_size
+# DEFINE UTIL FUNCIONS
 
 
-def base_cell(
-    atlas: list = ["cellxgene"],
-    organism: str = "mus_musculus",
-    cell_types: None | list[str] = None,
-    zarr_path: str = ".",  # Not sure if I will use zarr path here or not
-    chunk_size: int = 1000,
-):
-    gene_set = get_common_genes(atlas, organism)
-    base_cells = []
-    for at in atlas:
-        if at == "cellxgene":
-            base_cells.append(base_cellxgene(gene_set, organism, cell_types))
-        elif at == "other":
-            print("none at the moment")
-        else:
-            raise ValueError(f"Unknown atlas: {at}")
-    # Leaving space to using co-embedding space to run this on all atlases
-    return base_cells
-
-
-def get_common_genes(
-    atlas: list = ["cellxgene"],
-    organism: str = "mus_musculus",
-):
-    gene_sets = []
-
-    for at in atlas:
-        if at == "cellxgene":
-            with cellxgene_census.open_soma() as census:
-                genes = set(census["census_data"][organism].ms["RNA"].var.index)
-                gene_sets.append(genes)
-        elif at == "other_atlas":
-            # Place holder
-            genes = set(...)
-            gene_sets.append(genes)
-        else:
-            raise ValueError(f"Unknown atlas: {at}")
-
-    if not gene_sets:
-        raise ValueError("No valid atlases provided")
-
-    if len(gene_sets) == 1:
-        return gene_sets[0]
-    else:
-        return set.intersection(*gene_sets)
-
-
-def base_cellxgene(
-    gene_set: list[str],
-    organism: str = "mus_musculus",
-    cell_types: list[str] | None = None,
-) -> npt.NDArray[np.float64]:
-    """
-    Compute mean expression for a gene set, optionally filtered by cell types.
-
-    Parameters:
-    -----------
-    gene_set : list[str]
-        Compulsory. List of gene names to compute mean expression for.
-    organism : str
-        Organism name (default: "mus_musculus")
-    cell_types : list[str] | None
-        Optional. List of cell type values to filter on. If None, uses all cell types.
-
-    Returns:
-    --------
-    npt.NDArray[np.float64]
-        Mean expression values for the gene set across selected cells.
-    """
-    # connect to cellxgene server
-    with cellxgene_census.open_soma() as census:
-        org = census["census_data"][organism]
-
-        # Build obs_query with primary data filter
-        obs_filter = "is_primary_data==True"
-
-        # Add cell type filter if provided
-        if cell_types is not None:
-            cell_type_filter = " && ".join(
-                [f'cell_type=="{ct}"' for ct in cell_types]
-            )
-            obs_filter = f"({obs_filter}) && ({cell_type_filter})"
-
-        # Always filter primary tissue to remove duplicate cells
-        with org.axis_query(
-            measurement_name="RNA",
-            obs_query=soma.AxisQuery(value_filter=obs_filter),
-            var_query=soma.AxisQuery(
-                value_filter=" || ".join(
-                    [f'feature_name=="{gene}"' for gene in gene_set]
-                )
-            ),
-        ) as query:
-            # Get variable information
-            var_df = query.var().concat().to_pandas()
-            n_vars = len(var_df)
-            n_obs = query.n_obs
-
-            print(f"Filtering for {n_obs} cells and {n_vars} genes")
-
-            # Initialize accumulators for per-gene means
-            gene_sum = np.zeros((n_vars,), dtype=np.float64)
-            gene_count = np.zeros((n_vars,), dtype=np.int64)
-
-            # Get indexer to map soma_joinid to positional indices
-            indexer = query.indexer
-
-            # Stream through X data in batches
-            for chunk_idx, arrow_tbl in enumerate(query.X("raw").tables()):
-                print(f"Processing chunk {chunk_idx + 1}...")
-
-                # Get positional indices for genes (var dimension)
-                var_pos = indexer.by_var(arrow_tbl["soma_dim_1"])
-                # Get the data values
-                data = arrow_tbl["soma_data"].to_numpy()
-
-                # Accumulate sums and counts per gene
-                np.add.at(gene_sum, var_pos, data)
-                np.add.at(gene_count, var_pos, 1)
-
-                print(
-                    f"  Chunk {chunk_idx + 1} complete: {len(data)} values processed"
-                )
-
-            # Compute final means
-            gene_mean = np.divide(
-                gene_sum,
-                n_obs,
-                where=(gene_count > 0),
-                out=np.zeros_like(gene_sum),
-            )
-    return gene_mean
-
-
-def cell_diff(
-    gene_mean: npt.NDArray,
-    cell_types: None | list[str],
-    zarr_path: str = ".",
-    chunk_size: int = 1000,
-    keep_all: bool = False,
-    atlas: str | list = "cellxgene",
-):
-    if "cellxgene" in atlas:
-        with cellxgene_census.open_soma() as census:
-            cell_meta_data = cellxgene_census.get_obs(
-                census, "mus_musculus", column_names=["cell_type"]
-            )
-            if keep_all:
-                cell_meta_data = list(cell_meta_data)
-            else:
-                cell_meta_data = set(cell_meta_data["cell_type"])
-
-    return 0
-
-
-def initialize_base_cell_store(
-    gene_set_size,
-    cell_set_size,
-    zarr_path: str = ".",
-    max_chunk_size: int = 5000,
-    min_chunk_size: int = 1000,
+# Make this function adaptable to other databases
+def get_gene_set(
     atlas: str = "cellxgene",
+    organism: str = "mus_musculus",
+    max_size: None | int = None,
+    version: str = "2025-01-30",
 ):
-    store = zarr.storage.LocalStore(zarr_path, read_only=False)
-    root = zarr.create_group(store)
-    for at in atlas:
-        cell_chunk_size, gene_chunk_size = compute_chunk_size(
-            cell_set_size, gene_set_size, max_chunk_size, min_chunk_size
-        )
-        atlas_group = root.create_group(f"atlast_{at}")
-        atlas_group.create_array(
-            "base_cell",
-            shape=(cell_set_size, gene_set_size),
-            dtype=np.float32,
-            chunks=(cell_chunk_size, gene_chunk_size),
-            fill_value=0.0,
-        )
-        cell_id = atlas_group.create_group("obs")
-        cell_id.create_array(
-            "cell_types",
-            shape=(cell_set_size,),
-            dtype=str,
-            chunks=(cell_chunk_size,),
-        )
-        gene_id = atlas_group.create_group("var")
-        gene_id.create_array(
-            "gene_names",
-            shape=(gene_set_size,),
-            dtype=str,
-            chunks=(gene_chunk_size,),
-        )
-        atlas_group.attrs["n_cells"] = cell_set_size
-        atlas_group.attrs["n_genes"] = gene_set_size
+    if atlas == "cellxgene":
+        with cellxgene_census.open_soma(census_version=version) as census:
+            gene_metadata = cellxgene_census.get_var(
+                census, organism, column_names=["feature_name", "feature_id"]
+            )
+            genes = gene_metadata["feature_name"].tolist()
+        if max_size is None:
+            return genes
+        else:
+            return genes[0:max_size]
+    else:
+        # Place holder for future data bases
+        raise ValueError(f"Unknown atlas: {atlas}")
 
-    return root
+
+# Make this function adaptable to other databases
+def get_cell_set(
+    atlas: str = "cellxgene",
+    organism: str = "mus_musculus",
+    max_size: None | int = None,
+    version: str = "2025-01-30",
+):
+    if atlas == "cellxgene":
+        with cellxgene_census.open_soma(census_version=version) as census:
+            cell_meta_data = cellxgene_census.get_obs(
+                census, organism, column_names=["cell_type"]
+            )
+            cell_types = list(set(cell_meta_data["cell_type"]))
+        if max_size is None:
+            return cell_types
+        else:
+            return cell_types[0:max_size]
+    else:
+        raise ValueError(f"Unknown atlas: {atlas}")
+
+
+# For clarity and ease this one will be data base specific
+# we can just write a wrapper for these later if needed.
+def base_cellxgene(
+    gene_set,
+    cell_set,
+    organism: str = "mus_musculus",
+    batch_size: int = 1000,
+    version: str = "2025-01-30",
+    device: str = "cpu",
+):
+    # Concat gene and cell set
+    # always use primary data
+    # User should always provide this data
+    feature_set = "feature_name in ['" + "', '".join(gene_set) + "']"
+    obs_set = (
+        "is_primary_data == True and cell_type in ['"
+        + "', '".join(cell_set)
+        + "']"
+    )
+
+    # First we pull the data and use the pytorch loader.
+    # So silly but at least we can GPU accelerate compute...
+    with cellxgene_census.open_soma(census_version=version) as census:
+        # get the minimal batch size
+        query_size = cellxgene_census.get_obs(
+            census, organism, value_filter=obs_set
+        )
+        effective_batch_size = min([batch_size, query_size.shape[0]])
+        # get actual data to parse to experiment
+        base_cell_data = census["census_data"][organism]
+        # Check actual batch size - not the best but it will do for now
+        obs_query = soma.AxisQuery(value_filter=obs_set)
+        var_query = soma.AxisQuery(value_filter=feature_set)
+
+        experiment_datapipe = census_ml.ExperimentDataPipe(
+            base_cell_data,
+            measurement_name="RNA",
+            X_name="normalized",
+            obs_query=obs_query,
+            var_query=var_query,
+            obs_column_names=["cell_type"],
+            batch_size=effective_batch_size,
+            shuffle=False,
+        )
+
+        # Compute mean using torch
+        experiment_dataloaded = census_ml.experiment_dataloader(
+            experiment_datapipe
+        )
+        # will need to make a check here to add gpu
+        device = torch.device(device)
+        mean = 0.0
+        var = 0.0
+        batch_count = 1
+        print(f"Number of batches = {len(experiment_dataloaded)}")
+        for gene_tensor, _ in experiment_dataloaded:
+            print(f"Processing batch {batch_count}")
+            local_gene_tensor = gene_tensor.to(device)
+            local_mean = torch.mean(local_gene_tensor, axis=0)
+            local_var = torch.var(local_gene_tensor, axis=0)
+            mean += local_mean
+            var += local_var
+            total_mean = mean / batch_count
+            total_mean = total_mean.detach().clone()
+            total_var = var / batch_count
+            total_var = total_var.detach().clone()
+            batch_count += 1
+    return total_mean.numpy(), total_var.numpy()
+
+
+def get_base_cells(
+    zarr_path,
+    gene_set,
+    cell_set,
+    organism: str = "mus_musculus",
+    batch_size: int = 1000,
+    version: str = "2025-01-30",
+    device: str = "cpu",
+):
+    # First we get THE base cell
+    # Not going to
+    base_mean, base_var = base_cellxgene(
+        gene_set, cell_set, organism, batch_size, version, device
+    )
+    # write the results to zarr store
+    zarr_store = zarr.open(store=zarr_path, mode="r+")
+    zarr_store["base_cell_mean"][0, :] = base_mean
+    zarr_store["base_cell_var"][0, :] = base_var
+    # Next we run over each cell types to get the mean cell of each cell type
+    for ct in range(1, len(cell_set) + 1):
+        cell_type = cell_set[ct - 1]
+        print(f"Current cell type = {cell_type}")
+        local_mean, local_var = base_cellxgene(
+            gene_set, [cell_type], organism, batch_size, version, device
+        )
+        zarr_store["base_cell_mean"][ct, :] = local_mean
+        zarr_store["base_cell_var"][ct, :] = local_var
+    return zarr_store
+
+
+# # Doesn't currently work - get connection error and it is not clear what the "path to experiement should be."
+# def base_cellxgene_newapi(
+#     gene_set,
+#     cell_set,
+#     organism: str = "mus_musculus",
+#     batch_size: int = 1000,
+#     version: str = "2025-01-30",
+#     device: str = "cpu",
+# ):
+#     # Build filter strings
+#     gene_filter = "feature_name in ['" + "', '".join(gene_set) + "']"
+#     cell_filter = (
+#         "is_primary_data == True and cell_type in ['"
+#         + "', '".join(cell_set)
+#         + "']"
+#     )
+
+#     # Open CELLxGENE census and get the experiment path
+#     with cellxgene_census.open_soma(census_version=version) as census:
+#         exp = census["census_data"][organism]
+#         experiment_uri = exp.uri
+
+#     # Now open as TileDB-SOMA Experiment with the new API
+#     with Experiment.open(experiment_uri) as exp:
+#         # Use axis_query for filtering
+#         with exp.axis_query(
+#             measurement_name="RNA",
+#             obs_query=AxisQuery(value_filter=cell_filter),
+#             var_query=AxisQuery(value_filter=gene_filter),
+#             obs_column_names=["cell_type"],
+#         ) as query:
+#             # Create dataset and dataloader
+#             ds = ExperimentDataset(query, batch_size=batch_size)
+#             experiment_dataloaded = experiment_dataloader(ds)
+
+#             # Set up device and initialize accumulators
+#             device_obj = torch.device(device)
+
+#             total_mean = 0.0
+#             total_var = 0.0
+#             batch_count = 0
+
+#             # Iterate through batches
+#             for X_batch, obs_batch in experiment_dataloaded:
+#                 # X_batch: expression matrix (n_obs, n_vars)
+#                 # obs_batch: observation metadata
+#                 X_batch = X_batch.to(device_obj)
+#                 print(f"Batch shape: {X_batch.shape}")
+
+#                 # Compute batch statistics
+#                 batch_mean = X_batch.mean().item()
+#                 batch_var = X_batch.var().item()
+
+#                 # Accumulate
+#                 total_mean += batch_mean
+#                 total_var += batch_var
+#                 batch_count += 1
+
+#             # Average over batches
+#             if batch_count > 0:
+#                 mean = torch.tensor(total_mean / batch_count, device=device_obj)
+#                 var = torch.tensor(total_var / batch_count, device=device_obj)
+#             else:
+#                 mean = torch.tensor(0.0, device=device_obj)
+#                 var = torch.tensor(0.0, device=device_obj)
+
+#     return mean, var

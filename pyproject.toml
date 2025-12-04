@@ -46,6 +46,8 @@ dependencies = [
     "dask-ml>=2024.1",
     "distributed>=2024.1",
     "cellxgene-census>=1.17.0",
+    "torchdata==0.9.0",
+    "tiledbsoma-ml>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -85,10 +87,6 @@ mlops = [
     "mlflow>=2.10",
 ]
 
-# GPU support
-cuda = [
-    "jax[cuda12]>=0.4.20",
-]
 
 # All optional dependencies
 all = [
